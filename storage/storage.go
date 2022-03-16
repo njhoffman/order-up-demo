@@ -1,41 +1,62 @@
-// Package storage contains the code to persist and retrieve orders from a
-// database
+// Package storage contains the code to persist and retrieve orders from a database
 package storage
 
 import (
 	"context"
-	"time"
-
 	"github.com/levenlabs/go-llog"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"os"
+	"sync"
+	"time"
 )
 
-// Instance holds a database connection for use in the storage methods
+// database name is randomized to prevent wiping before each test
 type Instance struct {
-	// database is the name of the database within the storage engine and being a
-	// variable we'll randomize this in tests so we don't need to wipe the database
-	// between every test run
-	// you should use this as the database name for all of your methods to simplify
-	// testing
-	database string
-	// this is where you'd store any database connections like a *mongo.Client or
-	// *sql.DB
+	dbconnect   string
+	database    string
+	c_orders    string
+	c_customers string
+	client      *mongo.Client
+	mongoError  error
+	mongoOnce   sync.Once
 }
 
 func New(overrideDatabase string) *Instance {
 	// create a pointer to an Instance that we will return after initialization
+	var ok bool
 	inst := &Instance{}
-	// if they sent overrideDatabase then use that, like for tests, otherwise
-	// fallback to a static name for production, staging, etc
-	// you might have some environmental variables or flags instead to do this but
-	// for this project this is sufficient
+	// if they sent overrideDatabase then use that, like for tests
 	if overrideDatabase != "" {
 		inst.database = overrideDatabase
 	} else {
-		inst.database = "order_up"
+		inst.database, ok = os.LookupEnv("MONGO_DATABASE")
+		if !ok {
+			inst.database = "order_up"
+		}
+	}
+	// env variable for dynamic address assignment
+	inst.dbconnect, ok = os.LookupEnv("MONGO_DBCONNECT")
+	if !ok {
+		inst.dbconnect = "mongodb://localhost:27017"
 	}
 
-	// TODO: code for connecting to the database and storing the connected driver
-	// instance on inst
+	// collection constants
+	inst.c_orders = "orders"
+	inst.c_customers = "customers"
+
+	mongoOptions := options.Client().ApplyURI(inst.dbconnect)
+	mongoClient, err := mongo.Connect(context.TODO(), mongoOptions)
+	if err != nil {
+		inst.mongoError = err
+	}
+	// ping to ensure mongodb server is responsive
+	err = mongoClient.Ping(context.TODO(), nil)
+	if err != nil {
+		inst.mongoError = err
+	}
+
+	inst.client = mongoClient
 
 	// give the ensureSchema function only 15 seconds to complete
 	// after 15 seconds the context will return DeadlineExceeded errors which should

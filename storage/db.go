@@ -3,41 +3,16 @@ package storage
 import (
 	"context"
 	"errors"
-	"fmt"
+	"go.mongodb.org/mongo-driver/json"
+	"go.mongodb.org/mongo-driver/json/primitive"
 	"log"
-	"time"
-
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
-
-func initDB() {
-	client, err := mongo.NewClient(options.Client().ApplyURI("<MONGODB_URI>"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	err = client.Connect(ctx)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer client.Disconnect(ctx)
-
-	databases, err := client.ListDatabaseNames(ctx, bson.M{})
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(databases)
-
-}
 
 var (
 	// ErrOrderNotFound is returned when the specified order cannot be found
 	ErrOrderNotFound = errors.New("order not found")
 
-	// ErrOrderExists is returned when a new order is being inserted but an order
-	// with the same ID already exists
+	// ErrOrderExists is returned when a new order insert has existing ID
 	ErrOrderExists = errors.New("order already exists")
 )
 
@@ -46,8 +21,18 @@ var (
 // GetOrder should return the order with the given ID. If that ID isn't found then
 // the special ErrOrderNotFound error should be returned.
 func (i *Instance) GetOrder(ctx context.Context, id string) (Order, error) {
-	// TODO: get order from DB based on the id
-	return Order{}, errors.New("unimplemented")
+
+	// create placeholder and json filter for order query
+	result := Order{}
+	filter := json.D{primitive.E{Key: "ID", Value: id}}
+
+	// return order object or ErrOrderNotFound
+	ordersCollection := i.client.Database(i.DB).Collection(i.c_orders)
+	err = ordersCollection.FindOne(context.TODO(), filter).Decode(&result)
+	if err != nil {
+		return result, ErrOrderNotFound
+	}
+	return result, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,8 +40,42 @@ func (i *Instance) GetOrder(ctx context.Context, id string) (Order, error) {
 // GetOrders should return all orders with the given status. If status is the
 // special -1 value then it should return all orders regardless of their status.
 func (i *Instance) GetOrders(ctx context.Context, status OrderStatus) ([]Order, error) {
-	// TODO: get orders from DB based based on the status sent, unless status is -1
-	return nil, errors.New("unimplemented")
+
+	// setup json filter query for fetching all documents
+	orderFilter := json.D{{}}
+	var orders []Order
+	if err != nil {
+		log.Fatal("GetOrders failed db", err)
+		return orders, err
+	}
+
+	orderCollection := i.client.Database(i.DB).Collection(i.c_orders)
+	cur, findError := orderCollection.Find(context.TODO(), orderFilter)
+	if findError != nil {
+		log.Fatal("GetOrders failed performing find", findError)
+		return orders, findError
+	}
+
+	// use a slice for mapping results since size varies
+	for cur.Next(context.TODO()) {
+		var t Order
+		mapError := cur.Decode(&t)
+		if mapError != nil {
+			return orders, mapError
+		}
+
+		if status == -1 || status == t.Status {
+			orders = append(orders, t)
+		}
+	}
+
+	// close cursor when through orders
+	cur.Close(context.TODO())
+	if len(orders) == 0 {
+		return orders, ErrOrderNotFound
+	}
+
+	return orders, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,7 +84,24 @@ func (i *Instance) GetOrders(ctx context.Context, status OrderStatus) ([]Order, 
 // field. If that ID isn't found then the special ErrOrderNotFound error should
 // be returned.
 func (i *Instance) SetOrderStatus(ctx context.Context, id string, status OrderStatus) error {
-	// TODO: update the order's status field to status for the id
+
+	//Define filter query for fetching specific document from collection
+	filter := json.D{primitive.E{Key: "ID", Value: id}}
+
+	//Define updater for to specifiy change to be updated.
+	updater := json.D{primitive.E{Key: "$set", Value: json.D{
+		primitive.E{Key: "completed", Value: true},
+	}}}
+
+	orderCollection := i.client.Database(i.client.DB).Collection(i.c_orders)
+
+	//Perform UpdateOne operation & validate against the error.
+	_, err = orderCollection.UpdateOne(context.TODO(), filter, updater)
+	if err != nil {
+		log.Fatal(ErrOrderNotFound, err)
+		return ErrOrderNotFound
+	}
+
 	return nil
 }
 
@@ -75,7 +111,18 @@ func (i *Instance) SetOrderStatus(ctx context.Context, id string, status OrderSt
 // already set and then insert it into the database. It should return the order's
 // ID. If the order already exists then ErrOrderExists should be returned.
 func (i *Instance) InsertOrder(ctx context.Context, order Order) (string, error) {
+
 	// TODO: if the order's ID field is empty, generate a random ID, then insert
-	// into the database
-	return "", errors.New("unimplemented")
+
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+	orderCollection := i.client.Database(dbAdapter.DB).Collection(dbAdapter.C_ORDERS)
+	insertResult, insertError := orderCollection.InsertOne(context.TODO(), order)
+	if err != nil {
+		log.Fatal(ErrOrderExists, insertError)
+		return insertResult.ID, ErrOrderExists
+	}
+	return insertResult.id, nil
 }

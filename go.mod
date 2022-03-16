@@ -2,6 +2,8 @@ module github.com/levenlabs/order-up
 
 go 1.17
 
+replace github.com/levenlabs/order-up/storage => ./storage
+
 require (
 	github.com/gin-gonic/gin v1.7.7
 	github.com/go-task/task/v3 v3.11.0

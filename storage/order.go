@@ -13,6 +13,9 @@ const (
 	// OrderStatusFulfilled means we've successfully fulfilled ALL of the line
 	// items and we've begun to ship the order
 	OrderStatusFulfilled OrderStatus = 2
+
+	// OrderStatusCancelled means a customer was successfully given a refund after a charge
+	OrderStatusCancelled OrderStatus = 3
 )
 
 // LineItem is a single charge on an order. The product of the PriceCents and

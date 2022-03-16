@@ -5,55 +5,17 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	// "time"
 
 	"github.com/levenlabs/order-up/api"
 	"github.com/levenlabs/order-up/mocks"
 	"github.com/levenlabs/order-up/storage"
-	// "go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type Customer struct {
-	id   int
-	Name string
-}
-
-type Order struct {
-	id     int
-	Status string
-}
-
 func main() {
-
-	// initialize mongodb with mongo-driver
-	clientOptions := options.Client().ApplyURI("mongodb://mongodb:27017")
-	client, err := mongo.Connect(context.TODO(), clientOptions)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// test db connection port
-	err = client.Ping(context.TODO(), nil)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Println("Connected to MongoDB!")
-	collection := client.Database("order_up").Collection("persons")
-	ruan := Person{"Ruan", 34, "Cape Town"}
-	insertResult, err := collection.InsertOne(context.TODO(), ruan)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("Inserted a Single Document: ", insertResult.InsertedID)
 
 	// flag.String returns a pointer to a string value that is set after
 	// flag.Parse() is called
