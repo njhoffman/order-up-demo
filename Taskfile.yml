@@ -1,0 +1,47 @@
+version: "3"
+tasks:
+
+  build:
+    desc: Build the app
+    cmds:
+      - go mod tidy
+      - go build -v -i main.go -o bin/
+    sources:
+    - ./*.go
+
+  run:
+    desc: Run the app
+    cmds:
+      - go mod tidy
+      - go run -v -i main.go
+      - docker run --rm -it -p 27017:27017 mongo
+    sources:
+    - ./*.go
+
+  lint:
+    desc: Run golangci-lint and vet on src files
+    cmds:
+      - golangci-lint run
+      - go vet
+    sources:
+    - ./*.go
+
+  test:
+    desc: Run all tests
+    cmds:
+    - task: test-api
+    - task: test-storage
+
+  test-api:
+    desc: Test the API service
+    cmds:
+      - richgo test -v ./api/
+    sources:
+    - ./*.go
+
+  test-storage:
+    desc: Test the storage controllers
+    cmds:
+      - richgo test -v ./storage/
+    sources:
+    - ./*.go
